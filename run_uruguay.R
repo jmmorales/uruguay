@@ -1,6 +1,8 @@
 
-load("matrices_Joaquin_abril20b1.RData")
-load("data_Joaquin_may20.RData")
+load("matrices_joaquin_ag22.rdata")
+
+#load("matrices_Joaquin_abril20b1.RData")
+#load("data_Joaquin_may20.RData")
 library("rstan")
 #Sys.setenv(LOCAL_CPPFLAGS = '-march=native')
 rstan_options(auto_write = TRUE)
@@ -43,8 +45,8 @@ fit <- stan(file = 'model_joaquin_apr22.stan',
             data = stan_dat,
             pars = pars,
             iter = 10000,
-            warmup = 2000,
-            thin = 5,
+            warmup = 5000,
+            thin = 3,
             chains = 4)
 
 save(fit, file="fit_uruguay.RData")
