@@ -47,6 +47,6 @@ fit <- stan(file = 'model_joaquin_apr22.stan',
             iter = 10000,
             warmup = 5000,
             thin = 3,
-            chains = 4)
+            chains = 3)
 
 save(fit, file="fit_uruguay.RData")
