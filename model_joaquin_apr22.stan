@@ -40,14 +40,14 @@ data {
   int<lower=1> N;                 // total number of observations 
   int<lower=1> T;                 // Number of (potential) replicates at each site
   int<lower=1> E;                 // Number of establecimientos
-  int<lower=0,upper=1> Y[N,T];    // response variable 
-  int<lower=1, upper=T> visits[N];
+  array[N,T] int<lower=0,upper=1> Y;    // response variable 
+  array[N] int<lower=1, upper=T> visits;
   int<lower=1> K;                 // number of sample-level predictors (potrero + establecimiento) parapoder construir una Z ?nica
   int<lower=1> N_J;               // num of groups (bird spp)
   int<lower=1> L_J;               // num group level predictors (traits)
   int<lower=1> N_1;               // num sites (transectas)
-  int<lower=1,upper=N_J> J[N];    // group id 
-  int<lower=1,upper=N_1> J_1[N];  // site id
+  array[N] int<lower=1,upper=N_J> J;    // group id 
+  array[N]int<lower=1,upper=N_1> J_1;  // site id
   int<lower=1> Kx;
   matrix[N, Kx] X;                // obs-level design matrix 
   matrix[N_J, L_J] TT;       // group-level traits presence
@@ -56,12 +56,12 @@ data {
   int<lower=1> Kp;                // va a ser 1 que es la probabilidad de detecci?n
   int<lower=1> L_Jp;              // num group level predictors (traits) for detection probability
   matrix[N_J, L_Jp] TTp;          // group-level traits for detection probability
-  int<lower=1, upper=E> est[N];   // identifica el establecimiento de la observacion
+  array[N] int<lower=1, upper=E> est;   // identifica el establecimiento de la observacion
   int<lower=1> K_e;               // number of sample-level predictors para establecimiento
   matrix[E, K_e] XE;              // establecimiento-level design matrix 
   matrix[N_1,N_1] Dmat;           // sites distance matrix
   int<lower=1> NY;                 // Number of years
-  int<lower=1, upper=NY> years[N];   // identifica el a?o de la observacion
+  array[N] int<lower=1, upper=NY> years;   // identifica el a?o de la observacion
 }
 
 parameters {
@@ -145,7 +145,7 @@ model {
 
 generated quantities{
       vector[N] mus;
-      int pa[N];
+      array[N] int pa;
       
     for (n in 1:N){
       mus[n] = beta0[J[n], est[n]] + beta00[years[n]] 
@@ -155,4 +155,3 @@ generated quantities{
 
     }
 }
-  
