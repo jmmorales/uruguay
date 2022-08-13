@@ -55,8 +55,10 @@ fit <- mod$sample(
   seed = 123, 
   chains = 4, 
   parallel_chains = 4,
-  iter_warmup = 500,
-  iter_sampling = 500,
-  thin = 1,
-  refresh = 100 # print update every 500 iters
+  iter_warmup = 5000,
+  iter_sampling = 10000,
+  thin = 10,
+  refresh = 200 # print update every 500 iters
 )
+
+fit$summary("rho")
