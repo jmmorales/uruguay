@@ -18,19 +18,19 @@ functions {
    
    
   // function for covariance based on Gaussian prior (from McElreath)
-  // removed self variance as we assume no change between visits
+
    
-  matrix cov_GPL2(matrix x, real sq_alpha, real sq_rho) {
+  matrix cov_GPL2(matrix x, real sq_alpha, real sq_rho, real delta) {
     int N = dims(x)[1];
     matrix[N, N] K;
     for (i in 1:(N-1)) {
-      K[i, i] = sq_alpha;
+      K[i, i] = sq_alpha + delta;
       for (j in (i + 1):N) {
         K[i, j] = sq_alpha * exp(-sq_rho * square(x[i,j]) );
         K[j, i] = K[i, j];
       }
     }
-    K[N, N] = sq_alpha;
+    K[N, N] = sq_alpha + delta;
     return K;
   } 
 
@@ -80,7 +80,7 @@ parameters {
   vector[N_1] r_1_1;          // site level random effects   
   real<lower=0> etasq;        // max covariance between sites
   real<lower=0> rhosq;        // covariance decay rate
-//  real<lower=0> delta;        // variance for sites
+  real<lower=0> delta;        // variance for sites
   real<lower=0> sigmaee;       // varianza de la normal de la jerarqu?a a?o
 }
     
@@ -101,21 +101,21 @@ model {
   // priors
   rhosq ~ exponential( 0.5 );
   etasq ~ exponential( 2 );
-//  delta ~ student_t(3,0,10);
-  SIGMA = cov_GPL2(Dmat, etasq, rhosq);
+  delta ~ student_t(3,0,10);
+  SIGMA = cov_GPL2(Dmat, etasq, rhosq, delta);
   r_1_1 ~ multi_normal( rep_vector(0,N_1) , SIGMA );
 
   Omega ~ lkj_corr(2);
-  tau ~ student_t(3,0,10); // cauchy(0, 2.5); // lognormal()
+  tau ~ normal(0,1); // student_t(3,0,10); // cauchy(0, 2.5); // lognormal()
   betas ~ multi_normal(m, S);
   //rho ~ beta(2,2);
   z ~ normal(0,1);
-  taup ~ student_t(3,0,10); // cauchy(0, 2.5); // lognormal()
+  taup ~ normal(0,1); //student_t(3,0,10); // cauchy(0, 2.5); // lognormal()
   ps ~ multi_normal(mp, Sp);
   zp ~ normal(0,1);
   //rhop ~ beta(2,2);
-  sigmae ~ student_t(3,0,10); // cauchy(0, 2.5); // lognormal()//varianza de la normal para establecimiento
-  sigmaee ~ student_t(3,0,10); 
+  sigmae ~ normal(0,1); //student_t(3,0,10); // cauchy(0, 2.5); // lognormal()//varianza de la normal para establecimiento
+  sigmaee ~ normal(0,1); //student_t(3,0,10); 
   
   target += log_sum_exp(log(0.5) +  beta_lpdf(rho|1, 100), log(0.5) +  beta_lpdf(rho|2, 2));
   target += log_sum_exp(log(0.5) +  beta_lpdf(rhop|1, 100), log(0.5) +  beta_lpdf(rhop|2, 2));
@@ -134,11 +134,14 @@ model {
   {
     vector[N] mu;
     for (n in 1:N){
-      mu[n] = beta0[J[n], est[n]]+ beta00[years[n]] +  X[n,1] * b_m[J[n],1] + X[n,2] * b_m[J[n],2]+ X[n,3] * b_m[J[n],3] + X[n,4] * b_m[J[n],4]+ r_1_1[J_1[n]];
+      mu[n] = beta0[J[n], est[n]]+ beta00[years[n]] +  X[n,1] * b_m[J[n],1] 
+      + X[n,2] * b_m[J[n],2]+ X[n,3] * b_m[J[n],3] 
+      + X[n,4] * b_m[J[n],4] + r_1_1[J_1[n]];
       if (sum(Y[n, 1:visits[n]]) > 0)
       target += log(inv_logit(mu[n])) + bernoulli_lpmf(Y[n,1:visits[n]]  | inv_logit(p_m[J[n],1]));
       else
-      target += log_sum_exp(log(inv_logit(mu[n])) + bernoulli_lpmf(Y[n,1:visits[n]]  | inv_logit(p_m[J[n],1])), log(1 - inv_logit(mu[n])));
+      target += log_sum_exp(log(inv_logit(mu[n])) 
+      + bernoulli_lpmf(Y[n,1:visits[n]]  | inv_logit(p_m[J[n],1])), log(1 - inv_logit(mu[n])));
     }
   }
 }
