@@ -1,20 +1,12 @@
 
-install.packages("cmdstanr", repos = c("https://mc-stan.org/r-packages/", getOption("repos")))
+#install.packages("cmdstanr", repos = c("https://mc-stan.org/r-packages/", getOption("repos")))
 
 library(cmdstanr)
 check_cmdstan_toolchain(fix = TRUE, quiet = TRUE)
 install_cmdstan()
 
 
-load("matrices_Joaquin_ag22.rdata")
-
-#load("matrices_Joaquin_abril20b1.RData")
-#load("data_Joaquin_may20.RData")
-#library("rstan")
-#Sys.setenv(LOCAL_CPPFLAGS = '-march=native')
-#rstan_options(auto_write = TRUE)
-#options(mc.cores = parallel::detectCores())
-
+load("matrices_Joaquin_sep22.rdata")
 
 stan_dat <- list(
   N = dim(y)[1],
@@ -50,27 +42,27 @@ pars <- c("Omega", "tau", "betas", "rho", "z",
 
 mod <- cmdstan_model('model_joaquin_apr22.stan')
 
-# fit <- mod$sample(
-#   data = stan_dat, 
-#   #seed = 123, 
-#   chains = 4, 
-#   parallel_chains = 4,
-#   output_dir = "C:\\Users\\jm361n\\uruguay",
-#   iter_warmup = 2000,
-#   iter_sampling = 10000,
-#   thin = 10,
-#   refresh = 200 # print update every 500 iters
-# )
+fit <- mod$sample(
+  data = stan_dat,
+  #seed = 123,
+  chains = 4,
+  parallel_chains = 4,
+  output_dir = "C:\\Users\\jm361n\\uruguay",
+  iter_warmup = 2000,
+  iter_sampling = 10000,
+  thin = 10,
+  refresh = 200 # print update every 500 iters
+)
 
 # fit_vb = mod$variational(
-#   data = stan_dat, 
+#   data = stan_dat,
 #   grad_samples = 100,
 #   seed = 123
 # )
 
-# fit_summary = fit$summary(pars)
-# write.csv(fit_summary, file = "fit_summary.csv")
-# save(fit, file = "fit.RData")
+fit_summary = fit$summary(pars)
+write.csv(fit_summary, file = "fit_summary.csv")
+save(fit, file = "fit.RData")
 
 # Rhat Neff ---------------------------------------------------------------
 
@@ -83,15 +75,12 @@ summary(fit_summary$rhat)
 summary(fit_summary$ess_bulk + fit_summary$ess_tail)
 #--------------------------------------------------------------------------
 
-load("data_Joaquin_ag22.RData")
-load("matrices_Joaquin_ag22.rdata")
+load("data_Joaquin_sep22.RData")
+load("matrices_Joaquin_sep22.rdata")
 
 library(sfsmisc)
 library(ggplot2)
-#library(rstan)
 library(ggpubr)
-
-
 
 # Probability of detection ------------------------------------------------
 
@@ -559,198 +548,7 @@ rownames(fit_summary)[tmp]
 save.image("analisis_Joaquin.RData")
 
 
-# Posterior predictive check ----------------------------------------------
-library(mvtnorm)
 
-
-post_bs = fit$draws('betas')
-
-nn = nrow(post_bs) * ncol(post_bs)
-
-pnames = c("Height", "brush", "tree", "land_use", "Intercept", "Landscape")
-np = length(pnames)
-# N = nrow(post_bs)
-# id = sample(1:N, nn, replace = T)#iteraciones que he sampleado
-
-resp = vector("list", np)
-for(p in 1:np)
-{
-  init = ((p-1)*n.s)+1
-  fin = init+(n.s-1)
-
-  tmp = as.vector(post_bs[,,init:fin])
-  dim(tmp) = c(dim(post_bs)[1] * dim(post_bs)[2], n.s)
-  resp[[p]]=  tmp#guardo las betas para las simulaciones
-}
-
-sigma = as.vector(fit$draws('sigmae')) #[id]#sd de la normal del intercepto (centrado en establecimieto)
-sigma2 = as.vector(fit$draws('sigmaee')) #[id]#sd del efecto a?o
-
-tmp = as.vector(plogis(fit$draws('ps')))
-dim(tmp) = c(dim(post_bs)[1] * dim(post_bs)[2], n.s)
-det_prob = tmp
-
-#par?metros de autocorrelaci?n especial
-
-rhosq_ = as.vector(fit$draws('rhosq')) #[id]
-etasq_ = as.vector(fit$draws('etasq')) #[id]
-delta_ = as.vector(fit$draws('delta')) #[id]
-
-
-X_ = X[1:n.su, ]
-est_ = est[1:n.su]
-visits_ = visits[1:n.su]
-year_ = years[1:n.su]
-
-
-# Simulate responses ------------------------------------------------------
-
-load("matrices_Joaquin_ag22.rdata")
-#Voy a guardar la ocupancia de cada especie su tasa de ocupaci?n (naive), es decir 
-#su presencia y detecci?n
-
-
-OCC = array(NA, c(nn, n.s))
-
-for(i in 1:nn)# length(id))
-{
-  #print(i/length(id))
-  #######################################
-  ##Simulo par?metros que ocurren a escala de comunidad#####
-  
-  #Covariaci?n espacial
-  K = array(NA, c(n.e, n.e))
-  for(e1 in 1:n.e)
-  {
-    for(e2 in 1:n.e)
-    {
-      K[e1,e2] =  etasq_[i]*exp(-rhosq_[i]*D[e1,e2]^2)
-    }
-  }
-  gamma = rmvnorm(1, mean = rep(0, n.e), K)
-  
-  #Intercepto por cada establecimiento
-  beta0 = array(NA, c(n.s,n.e))
-  for(ss in 1:n.s)
-  {
-    for(e in 1:n.e)
-    {
-      tmp = resp[[5]][i,ss]+resp[[6]][i,ss]*XE[e,2]
-      beta0[ss,e] = rnorm(1, mean = tmp, sd = sigma[i])
-    }
-  }
-  #Intercepto por a?o
-  beta00 = rep(NA, ny)
-  for(yy in 1:ny)
-  {
-    beta00[yy] = rnorm(1, mean = 0, sd = sigma2[i])
-  }
-  
-  
-  
-  
-  #########################################
-  #Simulo para cada especie ocupaci?n & detecci?n
-  occ = rep(NA, n.s)
-  for(s in 1:n.s)
-  {
-    tmp_Y = array(NA, c(n.su, max(visits)))
-    for(n in 1:n.su)
-    {
-      p_pres = plogis(beta0[s,est_[n]]+ beta00[year_[n]]+ X_[n,1]*resp[[1]][i,s]+ X_[n,2]*resp[[2]][i,s]+
-                        X_[n,3]*resp[[3]][i,s]+X_[n,4]*resp[[4]][i,s]+ gamma[est_[n]]) 
-      z = rbinom(1, 1, p_pres)#presente o no
-      tmp_Y[n,1:visits_[n]] = rbinom(visits_[n], 1, z*det_prob[i,s])#detectado en la visita
-    }
-    tmp = apply(tmp_Y, 1, function(x) sum(na.omit(x)))
-    occ[s] = length(tmp[tmp>0])/n.su
-  }#end loop spp
-  ############################################
-  OCC[i,]  = occ
-}#end loop simulations
-
-save(OCC, file = "Occ_PPC.RData")
-
-#Calcular las tasas de ocupaci?n de las especies
-Occ_obs = rep(NA, n.s)
-id = which(grepl("Visita", colnames(Y_data)) == TRUE)
-for(s in 1:n.s)
-{
-  tmp = Y_data[which(Y_data$Especie == spp[s]), id]
-  tmp2 = apply(tmp, 1, function(x) sum(na.omit(x)))
-  Occ_obs[s] = length(which(tmp2 >0))/n.su
-}
-
-#Hago la base de datos y el plot
-
-L = apply(OCC, 2, function(x) quantile(x, probs  = 0.025))
-U = apply(OCC, 2, function(x) quantile(x, probs  = 0.975))
-df = data.frame(spp = as.character(spp), tags = as.character(tag), obs = Occ_obs, L = L, U = U)
-
-
-ggplot(df, aes(x = tags, y = obs))+
-  theme_classic()+
-  geom_errorbar(aes(ymin=L, ymax=U), width=.05, size = 1, col = "darkgrey")+
-  geom_point(size = 4, col = "blue")+
-  ylab("Occupancy (naive)")+
-  xlab("")+
-  theme(axis.text.x = element_text(colour = "black", size = 6, angle = 75), 
-        axis.text.y = element_text(colour = "black", size = 12))+
-  theme(axis.line.x = element_line(color="black"),
-        axis.line.y = element_line(color="black"))+
-  theme(axis.title=element_text(size=16))+  
-  theme(axis.text.x = element_text(margin = margin(t = 20)))
-
-ggsave("PPC_naive_occupancy.png", dpi = 300, scale = 1.5)
-
-
-mean_pred = apply(OCC, 2, mean)
-df2 = data.frame(x = Occ_obs, y = mean_pred)
-
-ggplot(df2, aes(x = x, y =y)) +
-  geom_point(size = 4) +
-  theme_classic()+
-  ylab("Occ. predicted (naive)")+
-  xlab("Occ. obs (naive)")+
-  theme(axis.text.x = element_text(colour = "black", size = 14), 
-        axis.text.y = element_text(colour = "black", size = 14))+
-  theme(axis.line.x = element_line(color="black"),
-        axis.line.y = element_line(color="black"))+
-  theme(axis.title=element_text(size=16))+
-  geom_line(aes(x=x, y=x), color = "darkred", size = 1.5, linetype = "dashed") 
-
-ggsave("PPC_naive_occupancy_scatter.png", dpi = 300, scale = 1.5)
-
-#-------------------------------------------------------------------------------
-
-# Betas plot ordered by occupancy (most common, rarest) -------------------
-
-Occ_obs = rep(NA, n.s)
-id = which(grepl("Visita", colnames(Y_data)) == TRUE)
-for(s in 1:n.s)
-{
-  tmp = Y_data[which(Y_data$Especie == spp[s]), id]
-  tmp2 = apply(tmp, 1, function(x) sum(na.omit(x)))
-  Occ_obs[s] = length(which(tmp2 >0))/n.su
-}
-Occ_sorted = sort(Occ_obs, decreasing = T)
-length(Occ_sorted) == n.s
-
-#create a vector identifying spp
-
-id_sorted = c()
-names_sorted = c()
-names_sorted2 = c()
-for(s in 1:n.s)
-{
-  tmp = which(Occ_obs == Occ_sorted[s])
-  id_sorted = c(id_sorted, tmp)
-  names_sorted = c(names_sorted, tag[tmp])
-  names_sorted2 = c(names_sorted2, spp[tmp])
-}
-id_sorted = unique(id_sorted)
-names_sorted = unique(names_sorted)
-names_sorted2 = unique(names_sorted2)
 
 # Vulnerable spp ----------------------------------------------------------
 
@@ -851,11 +649,290 @@ ggarrange(plot_list[[1]], plot_list[[2]], plot_list[[3]],plot_list[[4]],
 ggsave("Cov_2.png", dpi = 300, scale = 2)
 
 
+# Trait effects on responses ----------------------------------------------
+plots = vector("list",6)
+
+#Las zs est?n organizadas p1t1, p1t2,...,p1tt --- ppt1,...,pptt
+betas_ = c("Height", "brush", "tree", "land_use", "intercept", "landscape")
+traits = c("Intercept", "Size", "Ground", "Insect", "Greg")
+
+
+betas = read.csv("betas.csv")
+uruguay_traits$Greg = as.character(uruguay_traits$Greg)
+uruguay_traits$Greg[which(uruguay_traits$Greg == "SI")] = "YES"
+df = data.frame(b_height= betas$mean[which(betas$param == "Height")],
+                b_brush = betas$mean[which(betas$param == "brush")],
+                b_use = betas$mean[which(betas$param == "land_use")],
+                b_lands = betas$mean[which(betas$param == "Landscape")],
+                b_tree = betas$mean[which(betas$param == "tree")],
+                ground = log(uruguay_traits$Ground_stratum+1), 
+                size= log(uruguay_traits$body_size), 
+                greg = uruguay_traits$Greg)
+
+#Pasture height
+#Sampleo las iteraciones con las que voy a hacer las curvas de respuesta
+#post_zs = draws$z
+post_zs = fit$draws('z')
+#niter = 100000
+#N = nrow(post_zs)
+#id = sample(1:N, niter, replace = T)#iteraciones que he sampleado
+#tmp_z = post_zs[id,]
+
+
+#Matriz de los traits raw
+size_raw = log(uruguay_traits$body_size)
+ground_raw = uruguay_traits$Ground_stratum
+insect_raw = uruguay_traits$Insect
+TT_raw = cbind(1, size_raw, ground_raw, insect_raw, TT_pres[,5])
+
+#Pasture height ~body  size############################
+
+nt = ncol(TT_pres)
+p = 1
+init = (p-1)*nt+1
+fin = init + (nt-1)
+tmp_z2 = tmp_z[,init:fin]
+
+id_col = which(colnames(TT_pres) ==  "Size")
+tmp_x = seq(from = min(TT_raw[,id_col]), to= max(TT_raw[,id_col]), length = nrow(TT_pres))
+tmp_x = cbind(rep(1, length(tmp_x)), tmp_x)
+y_pred = array(NA, c(niter, nrow(tmp_x)))
+for(i in 1:niter)
+{
+  tmp =  c(tmp_z2[i,1], tmp_z2[i,id_col])
+  b_est = tmp[2]/sd(TT_raw[,id_col])
+  inter = tmp[1] - mean(TT_raw[,id_col]) * b_est
+  par_est = c(inter, b_est)
+  tmp_TT = cbind(TT_raw[,1], TT_raw[,id_col])
+  y_pred [i,] = par_est %*% t(tmp_x)
+}
+
+mean_ = colMeans(y_pred)
+L_ = apply(y_pred, 2, function(x) quantile(x, probs = 0.025))
+U_ = apply(y_pred, 2, function(x) quantile(x, probs = 0.975))
+tmp_df = data.frame(x = TT_raw[,id_col], y = df$b_height, mean = mean_, L = L_, U  = U_ , x2 = tmp_x[,2])
+plots[[1]] = ggplot(tmp_df, aes(x = x, y = y, mean = mean_, L = L_, U = U_, x2 = x2)) +
+  geom_point(size = 3, color = "darkgrey") +
+  theme_classic()+
+  ylab("Pasture height")+
+  xlab("Body size (log)")+
+  theme(axis.text.x = element_text(colour = "black", size = 14), 
+        axis.text.y = element_text(colour = "black", size = 14))+
+  theme(axis.line.x = element_line(color="black"),
+        axis.line.y = element_line(color="black"))+
+  theme(axis.title=element_text(size=16))+
+  geom_line(aes(x=x2, y=mean), color = "darkblue", size = 1.5) +
+  geom_line(aes(x=x2, y=L), color = "darkblue", size = 1, linetype = "dashed") +
+  geom_line(aes(x=x2, y=U), color = "darkblue", size = 1, linetype = "dashed")
+
+
+# Pasture height ground use ------------------------------------------------
+
+nt = ncol(TT_pres)
+p = 1
+init = (p-1)*nt+1
+fin = init + (nt-1)
+tmp_z2 = tmp_z[,init:fin]
+
+id_col = which(colnames(TT_pres) ==  "Ground")
+tmp_x = seq(from = min(TT_raw[,id_col]), to= max(TT_raw[,id_col]), length = nrow(TT_pres))
+tmp_x = cbind(rep(1, length(tmp_x)), tmp_x)
+y_pred = array(NA, c(niter, nrow(tmp_x)))
+for(i in 1:niter)
+{
+  tmp =  c(tmp_z2[i,1], tmp_z2[i,id_col])
+  b_est = tmp[2]/sd(TT_raw[,id_col])
+  inter = tmp[1] - mean(TT_raw[,id_col]) * b_est
+  par_est = c(inter, b_est)
+  tmp_TT = cbind(TT_raw[,1], TT_raw[,id_col])
+  y_pred [i,] = par_est %*% t(tmp_x)
+}
+
+mean_ = colMeans(y_pred)
+L_ = apply(y_pred, 2, function(x) quantile(x, probs = 0.025))
+U_ = apply(y_pred, 2, function(x) quantile(x, probs = 0.975))
+tmp_df = data.frame(x = TT_raw[,id_col], y = df$b_height, mean = mean_, L = L_, U  = U_ , x2 = tmp_x[,2])
+plots[[2]] = ggplot(tmp_df, aes(x = x, y = y, mean = mean_, L = L_, U = U_, x2 = x2)) +
+  geom_point(size = 3, color = "darkgrey") +
+  theme_classic()+
+  ylab("Pasture height")+
+  xlab("Ground use (%)")+
+  theme(axis.text.x = element_text(colour = "black", size = 14), 
+        axis.text.y = element_text(colour = "black", size = 14))+
+  theme(axis.line.x = element_line(color="black"),
+        axis.line.y = element_line(color="black"))+
+  theme(axis.title=element_text(size=16))+
+  geom_line(aes(x=x2, y=mean), color = "darkblue", size = 1.5) +
+  geom_line(aes(x=x2, y=L), color = "darkblue", size = 1, linetype = "dashed") +
+  geom_line(aes(x=x2, y=U), color = "darkblue", size = 1, linetype = "dashed")
 
 
 
+# Brush cover -------------------------------------------------------------
+
+nt = ncol(TT_pres)
+p = 2
+init = (p-1)*nt+1
+fin = init + (nt-1)
+tmp_z2 = tmp_z[,init:fin]
+
+id_col = which(colnames(TT_pres) ==  "Size")
+tmp_x = seq(from = min(TT_raw[,id_col]), to= max(TT_raw[,id_col]), length = nrow(TT_pres))
+tmp_x = cbind(rep(1, length(tmp_x)), tmp_x)
+y_pred = array(NA, c(niter, nrow(tmp_x)))
+for(i in 1:niter)
+{
+  tmp =  c(tmp_z2[i,1], tmp_z2[i,id_col])
+  b_est = tmp[2]/sd(TT_raw[,id_col])
+  inter = tmp[1] - mean(TT_raw[,id_col]) * b_est
+  par_est = c(inter, b_est)
+  tmp_TT = cbind(TT_raw[,1], TT_raw[,id_col])
+  y_pred [i,] = par_est %*% t(tmp_x)
+}
+
+mean_ = colMeans(y_pred)
+L_ = apply(y_pred, 2, function(x) quantile(x, probs = 0.025))
+U_ = apply(y_pred, 2, function(x) quantile(x, probs = 0.975))
+tmp_df = data.frame(x = TT_raw[,id_col], y = df$b_brush, mean = mean_, L = L_, U  = U_ , x2 = tmp_x[,2])
+plots[[3]] = ggplot(tmp_df, aes(x = x, y = y, mean = mean_, L = L_, U = U_, x2 = x2)) +
+  geom_point(size = 3, color = "darkgrey") +
+  theme_classic()+
+  ylab("Brush cover")+
+  xlab("Size(log)")+
+  theme(axis.text.x = element_text(colour = "black", size = 14), 
+        axis.text.y = element_text(colour = "black", size = 14))+
+  theme(axis.line.x = element_line(color="black"),
+        axis.line.y = element_line(color="black"))+
+  theme(axis.title=element_text(size=16))+
+  geom_line(aes(x=x2, y=mean), color = "darkblue", size = 1.5) +
+  geom_line(aes(x=x2, y=L), color = "darkblue", size = 1, linetype = "dashed") +
+  geom_line(aes(x=x2, y=U), color = "darkblue", size = 1, linetype = "dashed")
+
+# Tree cover --------------------------------------------------------------
+
+nt = ncol(TT_pres)
+p = 3
+init = (p-1)*nt+1
+fin = init + (nt-1)
+tmp_z2 = tmp_z[,init:fin]
+
+id_col = which(colnames(TT_pres) ==  "Size")
+tmp_x = seq(from = min(TT_raw[,id_col]), to= max(TT_raw[,id_col]), length = nrow(TT_pres))
+tmp_x = cbind(rep(1, length(tmp_x)), tmp_x)
+y_pred = array(NA, c(niter, nrow(tmp_x)))
+for(i in 1:niter)
+{
+  tmp =  c(tmp_z2[i,1], tmp_z2[i,id_col])
+  b_est = tmp[2]/sd(TT_raw[,id_col])
+  inter = tmp[1] - mean(TT_raw[,id_col]) * b_est
+  par_est = c(inter, b_est)
+  tmp_TT = cbind(TT_raw[,1], TT_raw[,id_col])
+  y_pred [i,] = par_est %*% t(tmp_x)
+}
+
+mean_ = colMeans(y_pred)
+L_ = apply(y_pred, 2, function(x) quantile(x, probs = 0.025))
+U_ = apply(y_pred, 2, function(x) quantile(x, probs = 0.975))
+tmp_df = data.frame(x = TT_raw[,id_col], y = df$b_tree, mean = mean_, L = L_, U  = U_ , x2 = tmp_x[,2])
+plots[[4]] = ggplot(tmp_df, aes(x = x, y = y, mean = mean_, L = L_, U = U_, x2 = x2)) +
+  geom_point(size = 3, color = "darkgrey") +
+  theme_classic()+
+  ylab("Tree cover")+
+  xlab("Size(log)")+
+  theme(axis.text.x = element_text(colour = "black", size = 14), 
+        axis.text.y = element_text(colour = "black", size = 14))+
+  theme(axis.line.x = element_line(color="black"),
+        axis.line.y = element_line(color="black"))+
+  theme(axis.title=element_text(size=16))+
+  geom_line(aes(x=x2, y=mean), color = "darkblue", size = 1.5) +
+  geom_line(aes(x=x2, y=L), color = "darkblue", size = 1, linetype = "dashed") +
+  geom_line(aes(x=x2, y=U), color = "darkblue", size = 1, linetype = "dashed")
 
 
+# Tree cover Ground -------------------------------------------------------
+
+id_col = which(colnames(TT_pres) ==  "Ground")
+tmp_x = seq(from = min(TT_raw[,id_col]), to= max(TT_raw[,id_col]), length = nrow(TT_pres))
+tmp_x = cbind(rep(1, length(tmp_x)), tmp_x)
+y_pred = array(NA, c(niter, nrow(tmp_x)))
+for(i in 1:niter)
+{
+  tmp =  c(tmp_z2[i,1], tmp_z2[i,id_col])
+  b_est = tmp[2]/sd(TT_raw[,id_col])
+  inter = tmp[1] - mean(TT_raw[,id_col]) * b_est
+  par_est = c(inter, b_est)
+  tmp_TT = cbind(TT_raw[,1], TT_raw[,id_col])
+  y_pred [i,] = par_est %*% t(tmp_x)
+}
+
+mean_ = colMeans(y_pred)
+L_ = apply(y_pred, 2, function(x) quantile(x, probs = 0.025))
+U_ = apply(y_pred, 2, function(x) quantile(x, probs = 0.975))
+tmp_df = data.frame(x = TT_raw[,id_col], y = df$b_tree, mean = mean_, L = L_, U  = U_ , x2 = tmp_x[,2])
+plots[[5]] = ggplot(tmp_df, aes(x = x, y = y, mean = mean_, L = L_, U = U_, x2 = x2)) +
+  geom_point(size = 3, color = "darkgrey") +
+  theme_classic()+
+  ylab("Tree cover")+
+  xlab("Size(log)")+
+  theme(axis.text.x = element_text(colour = "black", size = 14), 
+        axis.text.y = element_text(colour = "black", size = 14))+
+  theme(axis.line.x = element_line(color="black"),
+        axis.line.y = element_line(color="black"))+
+  theme(axis.title=element_text(size=16))+
+  geom_line(aes(x=x2, y=mean), color = "darkblue", size = 1.5) +
+  geom_line(aes(x=x2, y=L), color = "darkblue", size = 1, linetype = "dashed") +
+  geom_line(aes(x=x2, y=U), color = "darkblue", size = 1, linetype = "dashed")
 
 
+plots[[6]] = ggplot(df, aes(x=greg, y=b_use)) + 
+  geom_boxplot()+
+  theme_classic()+
+  ylab("Antrop.")+
+  xlab("Gregarious")+
+  theme(axis.text.x = element_text(colour = "black", size = 14), 
+        axis.text.y = element_text(colour = "black", size = 14))+
+  theme(axis.line.x = element_line(color="black"),
+        axis.line.y = element_line(color="black"))+
+  theme(axis.title=element_text(size=16))
+
+plots[[1]]
+ggsave("Altura_pasto_size_scatter.png", dpi = 300, scale = 1)
+plots[[2]]
+ggsave("Altura_pasto_ground_scatter.png", dpi = 300, scale = 1)
+plots[[3]]
+ggsave("Brush_size.png", dpi = 300, scale = 1)
+plots[[4]]
+ggsave("Tree_size.png", dpi = 300, scale = 1)
+plots[[5]]
+ggsave("Tree_ground.png", dpi = 300, scale = 1)
+plots[[6]]
+ggsave("Antr_greg.png", dpi = 300, scale = 1)
+
+plots2 = vector("list", 6)
+plots2[[1]] = plots[[1]]+ coord_fixed(2)+ ylab("Pasture height")
+plots2[[2]] = plots[[2]]+ coord_fixed(40)+ ylab("Pasture height")
+plots2[[3]] = plots[[3]]+ coord_fixed(1.7)+ ylab("Brush cover")
+plots2[[4]] = plots[[4]]+ coord_fixed(1.5)+ ylab("Tree cover")
+plots2[[5]] = plots[[5]]+ coord_fixed(30)+ ylab("Tree cover")
+plots2[[6]] = plots[[6]]+ coord_fixed(1)+ ylab("Antrop.")
+
+
+plots2 = vector("list", 6)
+plots2[[1]] = plots[[1]]+  ylab("Pasture height")
+plots2[[2]] = plots[[2]]+  ylab("Pasture height")
+plots2[[3]] = plots[[3]]+  ylab("Brush cover")
+plots2[[4]] = plots[[4]]+  ylab("Tree cover")
+plots2[[5]] = plots[[5]]+  ylab("Tree cover")
+plots2[[6]] = plots[[6]]+ ylab("Antrop.")
+
+
+ggarrange(plots2[[1]], plots2[[2]], plots2[[3]],
+          plots2[[4]], plots2[[5]], plots2[[6]],
+          labels = c("A", "B", "C", "D", "E", "F", "G"),  
+          ncol = 2, nrow = 3, common.legend = T, 
+          font.label = list(size = 10, color = "black", face = "bold"),
+          vjust = 1)
+ggsave("Scatter_trait_effects.png", dpi = 300, scale = 2)
+
+save.image("Analyses_Joaquin.RData")
 
