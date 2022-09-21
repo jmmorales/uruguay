@@ -47,7 +47,7 @@ fit <- mod$sample(
   #seed = 123,
   chains = 4,
   parallel_chains = 4,
-  output_dir = "C:\\Users\\jm361n\\uruguay",
+  #output_dir = "C:\\Users\\jm361n\\uruguay",
   iter_warmup = 2000,
   iter_sampling = 10000,
   thin = 10,
@@ -72,7 +72,7 @@ hist(fit_summary$ess_bulk + fit_summary$ess_tail, main = "n-eff" )
 par(op)
 
 summary(fit_summary$rhat)
-summary(fit_summary$ess_bulk + fit_summary$ess_tail)
+summary(fit_summary$ess_bulk) # + fit_summary$ess_tail)
 #--------------------------------------------------------------------------
 
 load("data_Joaquin_sep22.RData")
@@ -88,13 +88,13 @@ pdet <- fit_summary[grepl("ps", fit_summary$variable),]
 
 prob_det = data.frame(spp = as.character(spp),
                       tag = as.character(tag), 
-                      probs = plogis(pdet$mean),
-                      mean = pdet$mean,
-                      q005 = pdet$q5, 
-                      q095 = pdet$q95,
-                      ess_bulk = pdet$ess_bulk,
-                      ess_tail = pdet$ess_tail,
-                      Rhat = pdet$rhat)
+                      probs = round(plogis(pdet$mean), digits = 2),
+                      #mean = pdet$mean,
+                      q005 = round(plogis(pdet$q5), digits = 2), 
+                      q095 = round(plogis(pdet$q95), digits = 2),
+                      ess_bulk = round(pdet$ess_bulk, digits = 0),
+                      ess_tail = round(pdet$ess_tail, digits = 0),
+                      Rhat = round(pdet$rhat, digits = 2))
 
 write.csv(prob_det, "detection_probability_per_spp.csv", row.names = F)
 
@@ -119,7 +119,7 @@ ggsave("det_prob.png", dpi = 300, scale = 1.5)
 
 
 # Trait effects on probability of detection -------------------------------
-tr_det = colnames(TT_det)
+tr_det = c("Intercept", "Size", "Camouflage", "Gregarious", "Vocal")# colnames(TT_det)
 zps <- fit_summary[grepl("zp", fit_summary$variable),]
 #calculo las f
 tmp = fit$draws('zp')
@@ -149,11 +149,11 @@ df2 = df[-1,]
 plot_det2 = ggplot(df2, aes(x = x, y = fz, color=f)) +
   geom_linerange(aes(ymin =L , ymax = U), color = "black")+
   geom_point(size = 4) +
-  scale_colour_gradient(low = "lightgrey", high = "black",limits = c(0.5,1.1))+
+  scale_colour_gradient(low = "lightgrey", high = "black",limits = c(0.5,1))+
   theme_classic()+
   ylab("Effects on prob. det")+
   xlab("")+
-  theme(axis.text.x = element_text(colour = "black", size = 14, angle = 45), 
+  theme(axis.text.x = element_text(colour = "black", size = 14, angle = 15), 
         axis.text.y = element_text(colour = "black", size = 12))+
   theme(axis.line.x = element_line(color="black"),
         axis.line.y = element_line(color="black"))+
@@ -161,9 +161,9 @@ plot_det2 = ggplot(df2, aes(x = x, y = fz, color=f)) +
   geom_hline(yintercept = 0, color = "grey", size = 1.2, linetype = "dashed")+
   theme(axis.text.x = element_text(margin = margin(t = 10)))
 plot_det2
-ggsave("Traits_prob_det.png", dpi = 300, scale = 1.5)
+ggsave("Traits_prob_det.png", width = 9, height = 6, dpi = 300, scale = 1)
 
-zps$variable = c("imtercept", "antidep", "gregarious", "size", "vocal")
+zps$variable = c("imtercept", "camouflage", "gregarious", "size", "vocal")
 write.csv(zps, "traits_prob_det.csv", row.names = F)
 
 # Rho para la probabilidad de deteccion -----------------------------------
@@ -182,8 +182,8 @@ post_bs = fit$draws('betas')
 np = ncol(X)+ ncol(XE)
 pnames = c("Height", "brush", "tree", "land_use", "Intercept", "Landscape")
 np = length(pnames)
-ylabs = c("Pasture height (mean)", "Brush cover (prop)", "Tree cover (prop)", 
-          "Antrop. pasture", "Intercept", "Highland")
+ylabs = c("Pasture height (mean)", "Tussock cover (prop)", "Tree cover (prop)", 
+          "Antropic pasture", "Intercept", "Highland")
 betas_plot = list()
 betas_df = list()
 for(p in 1:np)
@@ -197,22 +197,9 @@ for(p in 1:np)
   f = rep(NA, dim(tmp)[3])
   for(i in 1:dim(tmp)[3])
   {
-    tmp1 = density(tmp[,,i], from = min(tmp[,,i])*1.1, to = max(tmp[,,i]*1.1))
-    if(min(tmp[,,i])*1.1 > 0)
-    {tmp1 = density(tmp[,,i], from = 0, to = max(tmp[,,i]*1.1))}
-    dd = data.frame(x = tmp1$x, y = tmp1$y)
-    if(mean(tmp[,,i]) > 0)
-    {
-      f[i] = integrate.xy(dd$x, dd$y, a = 0, b = max(dd$x))
-    }else{
-      if(max(dd$x) < 0)
-      {
-        f[i] = integrate.xy(dd$x, dd$y, a = min(dd$x), b = max(dd$x)) 
-      }else{
-        f[i] = integrate.xy(dd$x, dd$y, a = min(dd$x), b = 0)
-      }
-      
-    }
+    tmp1 = as.vector(tmp[,,i])
+    f[i] = length(which(tmp1 < 0 )) / length(tmp1)
+    if(mean(tmp1) > 0 ) f[i] = length(which(tmp1 > 0 )) / length(tmp1)
   } 
   
   df = data.frame(x = as.character(tag), 
@@ -223,7 +210,7 @@ for(p in 1:np)
   x = ggplot(df, aes(x = x, y = y, color=f)) +
     geom_linerange(aes(ymin =L , ymax = U), color = "black")+
     geom_point(size = 4) +
-    scale_colour_gradient(low = "lightgrey", high = "black",limits = c(0.5,1.1))+
+    scale_colour_gradient(low = "lightgrey", high = "black",limits = c(0.5,1))+
     theme_classic()+
     ylab(as.character(ylabs[[p]]))+
     xlab("")+
@@ -232,46 +219,61 @@ for(p in 1:np)
     theme(axis.line.x = element_line(color="black"),
           axis.line.y = element_line(color="black"))+
     theme(axis.title=element_text(size=14))+  
-    geom_hline(yintercept = 0, color = "grey", size = 1.2, linetype = "dashed")+
+    geom_hline(yintercept = 0, color = "grey", size = 1, linetype = "dotted")+
     theme(axis.text.x = element_text(margin = margin(t = 0)))
   betas_plot[[p]] = x
   betas_df[[p]]= data.frame(param = rep(as.character(pnames[p]), nrow(tmp_b)),
                             spp = as.character(spp), 
                             tag = as.character(tag),
-                            mean = tmp_b$mean, 
-                            q5 = tmp_b$q5, 
-                            q95 = tmp_b$q95,
-                            f = f,
-                            bulk = tmp_b$ess_bulk, 
-                            tail = tmp_b$ess_tail,
-                            Rhat = tmp_b$rhat)
+                            mean = round(tmp_b$mean, digits = 2), 
+                            q5 = round(tmp_b$q5, digits = 2), 
+                            q95 = round(tmp_b$q95, digits = 2),
+                            f = round(f, digits = 2),
+                            bulk = round(tmp_b$ess_bulk,digits = 0), 
+                            tail = round(tmp_b$ess_tail,digits = 0),
+                            Rhat = round(tmp_b$rhat, digits = 2))
 }
 
 betas_plot[[1]]
-ggsave("Altura_pasto.png", dpi = 300, scale = 2)
+ggsave("Altura_pasto.png", width = 9, height = 6, dpi = 300, scale = 1)
 betas_plot[[2]]
-ggsave("Cobertura_pajonal.png", dpi = 300, scale = 2)
+ggsave("Cobertura_pajonal.png", width = 9, height = 6, dpi = 300, scale = 1)
 betas_plot[[3]]
-ggsave("Cobertura_arborea.png", dpi = 300, scale = 2)
+ggsave("Cobertura_arborea.png", width = 9, height = 6, dpi = 300, scale = 1)
 betas_plot[[4]]
-ggsave("Mejorado.png", dpi = 300, scale = 2)
+ggsave("Mejorado.png", width = 9, height = 6, dpi = 300, scale = 1)
 betas_plot[[6]]
-ggsave("Sierra.png", dpi = 300, scale = 2)
+ggsave("Sierra.png",  width = 9, height = 6,dpi = 300, scale = 1)
 
 
 ggarrange(betas_plot[[1]], betas_plot[[2]], betas_plot[[3]], betas_plot[[4]],
           labels = c("A", "B", "C", "D"),  
-          ncol = 2, nrow = 2, common.legend = T, 
+          ncol = 2, nrow = 2, common.legend = T, legend = "right",
           font.label = list(size = 12, color = "black", face = "bold"),
-          vjust = 1)
-ggsave("Covariates_local.png", dpi = 300, scale = 3)
+          vjust = 1.3, hjust = -55)
+ggsave("Covariates_local.png", height = 6, width = 9, dpi = 300, scale = 1.5)
+
+ggarrange(betas_plot[[1]], betas_plot[[2]], betas_plot[[3]], betas_plot[[4]], betas_plot[[6]],
+          labels = c("A", "B", "C", "D", "E"),  
+          ncol = 1, nrow = 5, common.legend = T, legend = "top",
+          font.label = list(size = 12, color = "black", face = "bold"),
+          vjust = 1.3, hjust = -55)
+
+ggsave("Covariates_local.png", height = 9, width = 5, dpi = 300, scale = 1.5)
+
+
 ##Guardo las betas
 OUT = NULL
+res = NULL
 for(p in 1:np)
 {
   OUT = rbind(OUT, betas_df[[p]])
+  res = cbind(res, betas_df[[p]]$mean )
 }
-View(OUT)
+
+res = cbind(betas_df[[1]]$spp, betas_df[[1]]$tag, res)
+colnames(res) = c("spp", "tag", "grass height", "tussock", "tree", "antropic","intercept", "highland")
+write.csv(res, "betas_mean.csv", row.names = F)
 OUT = data.frame(OUT)
 write.csv(OUT, "betas.csv", row.names = F)
 
@@ -286,7 +288,7 @@ zs = zs[-tmp,]#quito las zp de las probabilidades de detecci?n
 post_zs = fit$draws('z')
 #En el vector z est? la informaci?n organizada como p1tr1, p1tr2...p1trt, pptr1...pptrt
 
-tr2 =colnames(TT_pres)
+tr2 = c("Intercept", "Size (log)", "Ground", "Insectivory", "Gregarious")#   colnames(TT_pres)
 nt = length(tr2)
 ylabs
 zs_plot = list()
@@ -303,22 +305,9 @@ for(p in 1:length(pnames))
   f = rep(NA, dim(tmp)[3])
   for(i in 1:dim(tmp)[3])
   {
-    tmp1 = density(tmp[,,i], from = min(tmp[,,i])*1.1, to = max(tmp[,,i]*1.1))
-    if(min(tmp[,,i])*1.1 > 0)
-    {tmp1 = density(tmp[,,i], from = 0, to = max(tmp[,,i]*1.1))}
-    dd = data.frame(x = tmp1$x, y = tmp1$y)
-    if(mean(tmp[,,i]) > 0)
-    {
-      f[i] = integrate.xy(dd$x, dd$y, a = 0, b = max(dd$x))
-    }else{
-      if(max(dd$x) < 0)
-      {
-        f[i] = integrate.xy(dd$x, dd$y, a = min(dd$x), b = max(dd$x)) 
-      }else{
-        f[i] = integrate.xy(dd$x, dd$y, a = min(dd$x), b = 0)
-      }
-      
-    }
+    tmp1 = as.vector(tmp[,,i])
+    f[i] = length(which(tmp1 < 0 )) / length(tmp1)
+    if(mean(tmp1) > 0 ) f[i] = length(which(tmp1 > 0 )) / length(tmp1)
   }
   df = data.frame(x = as.character(tr2),
                   y = tmp_z$mean, 
@@ -333,7 +322,7 @@ for(p in 1:length(pnames))
     theme_classic()+
     ylab(as.character(ylabs[[p]]))+
     xlab("")+
-    theme(axis.text.x = element_text(colour = "black", size = 14, angle = 45), 
+    theme(axis.text.x = element_text(colour = "black", size = 14, angle = 15), 
           axis.text.y = element_text(colour = "black", size = 12))+
     theme(axis.line.x = element_line(color="black"),
           axis.line.y = element_line(color="black"))+
@@ -350,13 +339,13 @@ zs_plot[[p]]
 
 
 zs_plot[[1]]
-ggsave("Altura_pasto_traits.png", dpi = 300, scale = 2)
+ggsave("Altura_pasto_traits.png", width = 9, height = 6, dpi = 300, scale = 1)
 zs_plot[[2]]
-ggsave("Cobertura_pajonal_traits.png", dpi = 300, scale = 2)
+ggsave("Cobertura_pajonal_traits.png", width = 9, height = 6, dpi = 300, scale = 1)
 zs_plot[[3]]
-ggsave("Cobertura_arborea_traits.png", dpi = 300, scale = 2)
+ggsave("Cobertura_arborea_traits.png",width = 9, height = 6,  dpi = 300, scale = 1)
 zs_plot[[4]]
-ggsave("Mejorado_traits.png", dpi = 300, scale = 2)
+ggsave("Mejorado_traits.png",width = 9, height = 6,  dpi = 300, scale = 1)
 
 ggarrange(zs_plot[[1]], zs_plot[[2]], zs_plot[[3]], zs_plot[[4]],
           labels = c("A", "B", "C", "D"),  
@@ -383,6 +372,7 @@ plots = vector("list", 4)
 
 plots[[1]] = ggplot(df, aes(x = size, y = b_height)) +
   geom_point(size = 4) +
+  ylim(-1.5, 1)+
   theme_classic()+
   ylab("Pasture height response")+
   xlab("Body size (log)")+
@@ -397,6 +387,7 @@ plots[[1]] = ggplot(df, aes(x = size, y = b_height)) +
 plots[[2]] = ggplot(df, aes(x = ground, y = b_height)) +
   geom_point(size = 4) +
   theme_classic()+
+  ylim(-1.5, 1)+
   ylab("Pasture height response")+
   xlab("Ground use (scaled)")+
   theme(axis.text.x = element_text(colour = "black", size = 14), 
@@ -411,6 +402,7 @@ plots[[2]] = ggplot(df, aes(x = ground, y = b_height)) +
 plots[[3]] = ggplot(df, aes(x = size, y = b_brush)) +
   geom_point(size = 4) +
   theme_classic()+
+  ylim(-1.5, 1)+
   ylab("Brush cover response")+
   xlab("Body size (log)")+
   theme(axis.text.x = element_text(colour = "black", size = 14), 
@@ -424,6 +416,7 @@ plots[[3]] = ggplot(df, aes(x = size, y = b_brush)) +
 plots[[4]] = ggplot(df, aes(x=greg, y=b_use)) + 
   geom_boxplot()+
   theme_classic()+
+  ylim(-1.5, 1)+
   ylab("Antrop. response")+
   xlab("Gregarious")+
   theme(axis.text.x = element_text(colour = "black", size = 14), 
@@ -433,24 +426,24 @@ plots[[4]] = ggplot(df, aes(x=greg, y=b_use)) +
   theme(axis.title=element_text(size=16))
 
 plots[[1]]
-ggsave("Altura_pasto_size_scatter.png", dpi = 300, scale = 2)
+ggsave("Altura_pasto_size_scatter.png", width = 9, height = 6, dpi = 300, scale = 1)
 plots[[2]]
-ggsave("Altura_pasto_ground_scatter.png", dpi = 300, scale = 2)
+ggsave("Altura_pasto_ground_scatter.png",width = 9, height = 6, dpi = 300, scale = 1)
 plots[[3]]
-ggsave("Pajonal_size_scatter.png", dpi = 300, scale = 2)
+ggsave("Pajonal_size_scatter.png",width = 9, height = 6, dpi = 300, scale = 1)
 plots[[4]]
-ggsave("Mejorado_greg_boxplot.png", dpi = 300, scale = 2)
+ggsave("Mejorado_greg_boxplot.png",width = 9, height = 6, dpi = 300, scale = 1)
 
 ggarrange(plots[[1]], plots[[2]], plots[[3]], plots[[4]],
           labels = c("A", "B", "C", "D"),  
-          ncol = 2, nrow = 2, common.legend = T, 
-          font.label = list(size = 12, color = "black", face = "bold"),
-          vjust = 1)
-ggsave("Traits_betas.png", dpi = 300, scale = 3)
+          ncol = 2, nrow = 2, common.legend = F, 
+          font.label = list(size = 16, color = "black", face = "bold"),
+          vjust = 1.5, hjust = -35)
+ggsave("Traits_betas.png",width = 9, height = 6, dpi = 300, scale = 1.5)
 
 #Efectos de si es monte o sierra
 zs_plot[[6]]
-ggsave("sierra_traits.png", dpi = 300, scale = 2)
+ggsave("sierra_traits.png", width = 9, height = 6, dpi = 300, scale = 1)
 
 
 ggplot(df, aes(x = size, y = b_lands)) +
@@ -504,8 +497,8 @@ par(op)
 #Hago un plot con la autocorrelaci?n
 x = seq(from = 0, to = max(D), by = 0.01)
 
-curve(median(fit$draws('etasq'))*exp(-median(fit$draws('rhosq'))*x^2), from = 0, to = 1,
-      xlab = "distance 100 km", ylab = "covariance", ylim = c(0,0.3), col = "black",
+curve(mean(fit$draws('etasq'))*exp(-mean(fit$draws('rhosq'))*x^2), from = 0, to = 6,
+      xlab = "distance 10 km", ylab = "covariance", ylim = c(0,0.3), col = "black",
       lwd = 2)
 
 
@@ -525,14 +518,14 @@ mean_cor = apply(tmp_y, 1, mean)
 L = apply(tmp_y, 1, function(x) quantile(x, probs = 0.025))
 U = apply(tmp_y, 1, function(x) quantile(x, probs = 0.975))
 
-df = data.frame(x = x, y = mean_cor, L = L, U)
+df = data.frame(x = x * 10, y = mean_cor, L = L, U)
 
 ggplot(df, aes(x=x, y=y, L = L, U = U)) + 
   geom_line(size = 1, colour = "black")+
   theme_classic()+
   geom_ribbon(aes(ymin=L, ymax=U), linetype=2, alpha=0.1)+
   ylab("Covariance")+
-  xlab("Distance (100 km)")+
+  xlab("Distance (km)")+
   theme(axis.text.x = element_text(colour = "black", size = 12), 
         axis.text.y = element_text(colour = "black", size = 12))+
   theme(axis.line.x = element_line(color="black"),
@@ -540,13 +533,13 @@ ggplot(df, aes(x=x, y=y, L = L, U = U)) +
   theme(axis.title=element_text(size=14))
 ggsave("covariance_distance.png", dpi = 300)
 
-
-write.csv(fit_summary, "fit_summary.csv")
-fit_summary = data.frame(fit_summary)
-tmp = which(fit_summary$Rhat > 1.1)
-rownames(fit_summary)[tmp]
-save.image("analisis_Joaquin.RData")
-
+# 
+# write.csv(fit_summary, "fit_summary.csv")
+# fit_summary = data.frame(fit_summary)
+# tmp = which(fit_summary$Rhat > 1.1)
+# rownames(fit_summary)[tmp]
+# save.image("analisis_Joaquin.RData")
+# 
 
 
 
