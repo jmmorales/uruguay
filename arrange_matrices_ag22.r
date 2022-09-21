@@ -2,6 +2,12 @@
 rm(list = ls())
 load("data_Joaquin_may20.RData")
 
+# fixing some shit
+tmpx = X_data$X[285]
+tmpy = X_data$Y[285]
+X_data$Y[285] = tmpx
+X_data$X[285] = tmpy
+
 spp22 = read.csv("bsp_list_ag22.csv")
 colnames(phy)
 tmp = which(colnames(phy) %in% spp22$Full_name)
@@ -52,7 +58,7 @@ phy = phy2
 spp = spp22$Full_name
 tag = tag2
 
-save(Y_data, X_data, phy, uruguay_traits, spp, tag, file = "data_Joaquin_ag22.RData")
+save(Y_data, X_data, phy, uruguay_traits, spp, tag, file = "data_Joaquin_sep22.RData")
 
 
 
@@ -60,11 +66,11 @@ save(Y_data, X_data, phy, uruguay_traits, spp, tag, file = "data_Joaquin_ag22.RD
 
 
 # Load data and libraries -------------------------------------------------
-rm(list = ls())
+#rm(list = ls())
 library(raster)
-load("data_Joaquin_ag22.RData")
+load("data_Joaquin_sep22.RData")
 
-#Compruebo que los datos están en los mismos órdenes
+#Compruebo que los datos est?n en los mismos ?rdenes
 length(spp) == ncol(phy)
 length(spp) == nrow(phy)
 nrow(uruguay_traits) == length(spp)
@@ -73,17 +79,17 @@ length(unique(Y_data$TransectaID)) == length(unique(X_data$TransectaID))
 
 # Arrange matrices --------------------------------------------------------
 
-#Lo primero que tengo que hacer es colocar las matrices de datos en el formato que deberían estar para el modelo 
+#Lo primero que tengo que hacer es colocar las matrices de datos en el formato que deber?an estar para el modelo 
 #que hemos programado
-n.s = length(spp)#Número de especies
-n.su = nrow(X_data)#Número de sampling units (transectas)
-n.e = length(unique(X_data$Establecimiento))#Número de establecimientos
-nV = 4 #Número de visitas como máximo 
+n.s = length(spp)#N?mero de especies
+n.su = nrow(X_data)#N?mero de sampling units (transectas)
+n.e = length(unique(X_data$Establecimiento))#N?mero de establecimientos
+nV = 4 #N?mero de visitas como m?ximo 
 
 ##Vectores que identifiquen: las especies (j), las unidades de muestreo (su) y los establecimientos (est)
-##vectores que van a servir para identificar las especies de pájaros,  las transectas y las estancias
-j = rep(1:n.s, each= n.su)#repite cada especie un número de veces igual  al número de potreros
-su = rep(1:n.su, n.s)#repite las sampling units un número igual al número de especies
+##vectores que van a servir para identificar las especies de p?jaros,  las transectas y las estancias
+j = rep(1:n.s, each= n.su)#repite cada especie un n?mero de veces igual  al n?mero de potreros
+su = rep(1:n.su, n.s)#repite las sampling units un n?mero igual al n?mero de especies
 j[1:n.su]
 su[1:n.su]
 
@@ -103,11 +109,11 @@ est[1:n.su]
 # Create Y matrix ---------------------------------------------------------
 
 #La matriz y (observaciones) tiene que estar organizada de la siguiente forma [n.s*n.su, nv]. Cada fila
-#corresponde a la combinación de una especie con una transecta y en ella hay hasta 4 visitas 1 si se ha observado y 0 si no
+#corresponde a la combinaci?n de una especie con una transecta y en ella hay hasta 4 visitas 1 si se ha observado y 0 si no
 #las filas van organizadas de la siguiente manera sp1site1, ..., sp1siten.su, ...., spn.s, siten.su Es decir
 #la primera especie las observaciones para todas las transectas,
 #la segunda especie las observaciones para todas las transectas...
-#y así sucesivamente
+#y as? sucesivamente
 
 ids = unique(X_data$TransectaID)
 
@@ -159,7 +165,7 @@ for(i in 1:length(spp))
     ERR =rbind(ERR, err)}
   }
 }
-ERR#Está todo OK
+ERR#Est? todo OK
 
 tmp2 = grep("Visita", colnames(Y_data))
 
@@ -198,15 +204,15 @@ rm(tmp3)
 #Escala de transecta
 Alt = scale(X_data$Altura_p)#altura del pasto
 Paj = scale(X_data$Cob_paj)#cobertura de pajonal
-Arb = scale(X_data$Cob_arb)#cobertura arbórea
+Arb = scale(X_data$Cob_arb)#cobertura arb?rea
 Uso_suelo = rep(NA, nrow(X_data))
 Uso_suelo[which(X_data$Uso_suelo == "Campo_natural")] = 0
 Uso_suelo[which(X_data$Uso_suelo == "Mejorado")] = 1
 summary(factor(Uso_suelo))
 
-#La forma de la función va a ser b0+b1*altura+b2*pajonal+b3*tree+b4*uso_suelo
+#La forma de la funci?n va a ser b0+b1*altura+b2*pajonal+b3*tree+b4*uso_suelo
 betas_ = c("Height", "brush", "tree", "land_use")
-X = cbind(rep(Alt, n.s), rep(Paj, n.s), rep(Arb, n.s), rep(Uso_suelo, n.s))#repito un número de veces = n.s para que tenga la misma
+X = cbind(rep(Alt, n.s), rep(Paj, n.s), rep(Arb, n.s), rep(Uso_suelo, n.s))#repito un n?mero de veces = n.s para que tenga la misma
 #estructura que la matrix Y (sp1site1...sp1siteN,..., spSsite1....spSsiteN)
 X = as.matrix(X)
 summary(X)
@@ -233,7 +239,7 @@ Vocal[which(uruguay_traits$Voice == "ALTA")] = 1
 uruguay_traits$body_size = as.numeric(as.character(uruguay_traits$body_size))
 
 TT_pres = as.matrix(cbind(scale(log(uruguay_traits$body_size)), scale(uruguay_traits$Ground),
-                          scale(log(uruguay_traits$Insect+1)),Greg))
+                          scale((uruguay_traits$Insect)),Greg))
 TT_pres = cbind(rep(1, nrow(TT_pres)), TT_pres)
 colnames(TT_pres)= c("Intercept", "Size", "Ground",  "Insect", "Greg")
 View(TT_pres)
@@ -269,7 +275,7 @@ XE = cbind(rep(1, n.e), Paisaje)
 # Matriz de distancias entre establecimientos -----------------------------------
 
 #Voy a hacer el promedio de las transectas de cada uno de los establecimientos para que
-#la parte de autocorrelación espacial sea a una escala más grande y más manejable (46*46, vs 1079x1079 la matriz de distancias)
+#la parte de autocorrelaci?n espacial sea a una escala m?s grande y m?s manejable (46*46, vs 1079x1079 la matriz de distancias)
 coord = array(NA, c(n.e, 2))
 
 for(i in 1:length(tag_est))
@@ -291,13 +297,13 @@ for(i in 1:length(tag_est))
   }
 }
 hist(D)
-D = D/100
+D = D/10
 hist(D)#centenas de km
 
-j = rep(1:n.s, each= n.su)#repite cada especie un número de veces igual  al número de potreros
+j = rep(1:n.s, each= n.su)#repite cada especie un n?mero de veces igual  al n?mero de potreros
 
 
-# Años --------------------------------------------------------------------
+# A?os --------------------------------------------------------------------
 
 tmp_y = sort(unique(Y_data$A.o))
 ny = length(tmp_y)
@@ -314,6 +320,6 @@ years = rep(X_data$Year2, n.s)
 # save input data ---------------------------------------------------------------
 
 save(y, X, XE, TT_det, TT_pres, C, n.su, n.s, su, est, n.e, tag_establecimiento, visits, j, D, 
-     ny, years, file  = "matrices_Joaquin_ag22.RData")
+     ny, years, file  = "matrices_Joaquin_sep22.RData")
 
 
