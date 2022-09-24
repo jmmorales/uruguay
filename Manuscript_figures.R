@@ -4,6 +4,7 @@ library(cmdstanr)
 library(sfsmisc)
 library(ggpubr)
 library(coda)
+library(dplyr)
 
 
 # Load data and analyses --------------------------------------------------
@@ -149,7 +150,61 @@ np = length(pnames)
 ylabs = c("Grass height (cm)", "Tussock (prop)", "Tree cover (prop)", 
           "Artificial pasture", "Intercept", "Hill")
 plot_list = vector("list", length(ylabs))
-for(p in 1:length(ylabs))
+
+init = ((1-1)*n.s)+1
+fin = init+(n.s-1)
+tmp_b = data.frame(bs[init:fin,])
+tmp_b$spp = as.character(tag)
+####calculo las f
+tmp = post_bs[,,init:fin]
+f = rep(NA, dim(tmp)[3])
+for(i in 1:dim(tmp)[3])
+{
+  #tmp1 = density(tmp[,,i], from = min(tmp[,,i])*1.1, to = max(tmp[,,i]*1.1))
+  tmp1 = as.vector(tmp[,,i])
+  f[i] = length(which(tmp1 < 0 )) / length(tmp1)
+  if(mean(tmp1) > 0 ) f[i] = length(which(tmp1 > 0 )) / length(tmp1)
+}
+#reordeno en funci?n de su abundancia
+tmp_mean = tmp_b$mean[id_sorted]
+tmp_L = tmp_b$q5[id_sorted]
+tmp_U = tmp_b$q95[id_sorted]
+tmp_f = f[id_sorted]
+names2 = tolower(names_sorted)
+df = data.frame(x= spp[id_sorted], y = tmp_mean, L = tmp_L, U = tmp_U, f= tmp_f)
+df$x = factor(df$x, levels = df$x)
+
+
+x =  ggplot(df, aes(x = x, y = y, color=f)) +
+  geom_linerange(aes(ymin =L , ymax = U), color = "darkgrey")+
+  #scale_x_continuous(breaks= seq(1,n.s, by = 3))+
+  ylim(-2.7,2.55)+
+  #geom_point(aes(shape=vuln, color=f), size = 4)+
+  geom_point(size = 2)+
+  theme(axis.text.x = element_text(colour = "black", size = 9, angle =90 ), 
+        axis.text.y = element_text(colour = "black", size = 12))+
+  scale_colour_gradient(low = "lightgrey", high = "black",limits = c(0.5,1))+
+  theme_classic()+
+  ylab(as.character(ylabs[[1]]))+
+  xlab("")+
+  theme(axis.line.x = element_line(color="black"),
+        axis.line.y = element_line(color="black"))+
+  theme(axis.title=element_text(size=12))+  
+  geom_hline(yintercept = 0, color = "black", size = 0.8, linetype = "dotted")+
+  theme(axis.text.x = element_text(margin = margin(t = 0)))+
+
+  #geom_area(data = df1, aes(x, y = 1000 * en), 
+  #          inherit.aes = FALSE, fill = "red", alpha = 0.2) + 
+  #coord_cartesian(ylim = c(-2.7,2.55))+
+  coord_flip()+
+  #  theme(legend.position = "none") +
+  theme(panel.grid.minor.y = element_blank())+
+  grids(axis= "y",linetype = "dotted", color = "darkgrey", size = 0.1) 
+plot_list[[1]] =  x
+
+
+
+for(p in 2:length(ylabs))
 {
    init = ((p-1)*n.s)+1
    fin = init+(n.s-1)
@@ -171,25 +226,29 @@ for(p in 1:length(ylabs))
    tmp_U = tmp_b$q95[id_sorted]
    tmp_f = f[id_sorted]
    names2 = tolower(names_sorted)
-   df = data.frame(x= 1:n.s, y = tmp_mean, L = tmp_L, U = tmp_U, f= tmp_f)
+   df = data.frame(x= spp[id_sorted], y = tmp_mean, L = tmp_L, U = tmp_U, f= tmp_f)
+   df$x = factor(df$x, levels = df$x)
    x =  ggplot(df, aes(x = x, y = y, color=f)) +
       geom_linerange(aes(ymin =L , ymax = U), color = "darkgrey")+
-      scale_x_continuous(breaks= seq(1,n.s, by = 3))+
+      #scale_x_continuous(breaks= seq(1,n.s, by = 1))+
      ylim(-2.7,2.55)+
    
       #geom_point(aes(shape=vuln, color=f), size = 4)+
       geom_point(size = 2)+
-      theme(axis.text.x = element_text(colour = "black", size = 9, angle =90 ), 
-            axis.text.y = element_text(colour = "black", size = 12))+
+     theme(axis.title.x=element_blank(),
+           axis.text.x=element_blank(),
+           axis.ticks.x=element_blank())+
+   #   axis.text.y = element_text(colour = "black", size = 12))+
       scale_colour_gradient(low = "lightgrey", high = "black",limits = c(0.5,1))+
       theme_classic()+
       ylab(as.character(ylabs[[p]]))+
       xlab("")+
-      theme(axis.line.x = element_line(color="black"),
-            axis.line.y = element_line(color="black"))+
-      theme(axis.title=element_text(size=12))+  
-      geom_hline(yintercept = 0, color = "black", size = 0.8, linetype = "dashed")+
-      theme(axis.text.x = element_text(margin = margin(t = 0)))+
+     scale_x_discrete(labels = NULL) +
+     # theme(axis.line.x = element_line(color="black"),
+      #      axis.line.y = element_line(color="black"))+
+      #theme(axis.title=element_text(size=12))+  
+      geom_hline(yintercept = 0, color = "black", size = 0.8, linetype = "dotted")+
+      #theme(axis.text.x = element_text(margin = margin(t = 0)))+
       coord_flip()+
     #  theme(legend.position = "none") +
       theme(panel.grid.minor.y = element_blank())+
@@ -198,46 +257,44 @@ for(p in 1:length(ylabs))
 }
 plot_list[[4]]
 
-
-plot1 = plot_list[[1]]+ theme(legend.position='none')+
-      theme(plot.margin = unit(c(2,0,2,0), "points"))+theme(aspect.ratio = 0.8)
-plot2 = plot_list[[2]]+ theme(legend.position='none')+
-       theme(plot.margin = unit(c(2,0,2,0), "points"))+theme(aspect.ratio = 0.8)
-plot3 = plot_list[[3]]+ theme(legend.position='none')+
-        theme(plot.margin = unit(c(2,0,2,0), "points"))+theme(aspect.ratio = 0.8)
-plot4 = plot_list[[4]]+ theme(legend.position='none')+
-       theme(plot.margin = unit(c(2,0,2,0), "points"))+theme(aspect.ratio = 0.8)
-
-tmp = ggdraw() +
-   draw_plot(plot3, x = 0, y = 0, width = .5, height = .5) +
-   draw_plot(plot4, x = .5, y = 0, width = .5, height = .5) +
-   draw_plot(plot1, x = 0, y = 0.5, width = 0.5, height = 0.5) +
-   draw_plot(plot2, x = 0.5, y = 0.5, width = 0.5, height = 0.5) +
-   draw_plot_label(label = c("A", "B", "C", "D"), size = 13,
-                   x = c(0.04, 0.54, 0.04, 0.54), y = c(1, 1, 0.5, 0.5))
-
-plot_grid(plot_list[[1]],plot_list[[2]],plot_list[[3]],plot_list[[4]],
-          labels = c("A", "B", "C", "D"),
-          scale = 0.9,
-          label_x = 0.8,
-          label_y = 0.9,
-          align = 'v')
-
-
-tmp
-ggsave("Covariates_v3.png", dpi = 300, scale = 1)
-
 ggarrange(plot_list[[1]],plot_list[[2]],plot_list[[3]],plot_list[[4]],
-          labels = c("A", "B", "C", "D"),  
+          #labels = c("A", "B", "C", "D"),  
+          widths = c(1.85, 1,1,1),
           ncol = 4, nrow = 1, common.legend = T, legend = "none",
           font.label = list(size = 12, color = "black", face = "bold"),
-          vjust = 1.3, hjust = -16)
+          vjust = 1.35, hjust = -6)
 
-ggsave("Covariates_local.png", height = 6, width = 9, dpi = 300, scale = 1)
+ggsave("Covariates_local.png", height = 6, width = 6, dpi = 300, scale = 1.4)
 
 plot_list[[6]]
 
 # Create table of species responses ---------------------------------------
+go = c(
+  "Ammodramus_humeralis",
+  "Anthus_correndera",
+  "Anthus_furcatus",
+  "Anthus_hellmayri",
+  "Athene_cunicularia",
+  "Emberizoides_ypiranganus",
+  "Embernagra_platensis",
+  "Gallinago_paraguaiae",
+  "Nothura_maculosa",
+  "Rhynchotus_rufescens",
+  "Sicalis_luteola",
+  "Sturnella_superciliaris",
+  "Tyrannus_savana",
+  "Vanellus_chilensis",
+  "Xanthopsar_flavus")
+
+# Endangered Species (global y nacional)
+en = c(
+  "Xanthopsar_flavus",
+  "Xolmis_dominicanus",
+  "Spartonoica_maluroides",
+  "Limnoctites_rectirostris"
+  #"Amblyramphus_holosericeus",
+  #"Emberizoides_ypiranganus"
+)
 
 df = read.csv("betas.csv")
 tmp_p = unique(df$param)
@@ -256,7 +313,18 @@ for(s in 1:n.s)
       }
  OUT = rbind(OUT,c(spp[s], tag[s], id, round(Occ_sorted[id],4), out))  
 }
-colnames(OUT) = c("Spp", "Tag", "Nr", "Occ", "Height", "Tussock", "Tree", "Artif.", "Highl.")
+
+tmp = OUT[,1] %in% en
+tmp1 = OUT[,1] %in% go
+
+OUT = cbind(OUT, as.factor(t(tmp)[1,]))
+OUT = cbind(OUT, as.factor(t(tmp1)[1,]))
+colnames(OUT) = c("Species", "Tag", "Nr", "Occupancy", 
+                  "Grass height", "Tussock cover", "Tree cover", 
+                  "Artificial Pasture.", "Hill", "Endangered", "Grassland specialist")
+
+
+
 write.csv(OUT, "TableB2_betas.csv")
 
 
