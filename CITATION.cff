@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: Morales
+    given-names: Juan Manuel
+    orcid: https://orcid.org/0000-0001-7269-7490
+title: "HMSC for presence/absence with imperfect detection"
+version: 1.0
+doi: https://doi.org/10.5281/zenodo.7828784
+date-released: 2023-06-30
