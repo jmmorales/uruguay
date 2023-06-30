@@ -41,7 +41,7 @@ zs = zs[-tmp,] #quito las zp de las probabilidades de detección
 
 nbs = rep(c("grass height", "tussock", "tree cover", "pasture type",
       "valley", "sierras"), each = 5)
-n = rep(c("intercept", "size", "ground", "insectivory", "gregarious"), each = 6)
+n = rep(c("intercept", "size", "ground", "insectivory", "gregarious"), 6)
 
 zs$coeff = nbs
 zs$pred = n
