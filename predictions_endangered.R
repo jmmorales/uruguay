@@ -127,8 +127,8 @@ res_grass %>%
     alpha = 0.8, color = "white", from = 0, to = 0.25
   ) +
   ylab("") +
-  xlab("Pr of occurrence") +
-  ggtitle("Grass height") +
+  xlab("Occurrence probability") +
+  ggtitle("(a) Grass height") +
   theme(axis.text.y =element_text(face="italic"))+
   scale_fill_cyclical(
     breaks = c("+10%", "base"),
@@ -178,8 +178,8 @@ res_tussock %>%
     alpha = 0.8, color = "white", from = 0, to = 0.25
   ) +
   ylab("") +
-  xlab("Pr of occurrence") +
-  ggtitle("Tussock") +
+  xlab("Occurrence probability") +
+  ggtitle("(b) Tussock") +
   theme(axis.text.y =element_text(face="italic"))+
   scale_fill_cyclical(
     breaks = c("base", "+10%"),
@@ -235,8 +235,8 @@ res_tree %>%
     alpha = 0.8, color = "white", from = 0, to = 0.25
   ) +
   ylab("") +
-  xlab("Pr of occurrence") +
-  ggtitle("Tree cover") +
+  xlab("Occurrence probability") +
+  ggtitle("(c) Tree cover") +
   theme(axis.text.y =element_text(face="italic"))+
   scale_fill_cyclical(
     breaks = c("base", "+10%"),
@@ -290,8 +290,8 @@ res_type %>%
     alpha = 0.8, color = "white", from = 0, to = 0.25
   ) +
   ylab("") +
-  xlab("Pr of occurrence") +
-  ggtitle("Pasture type") +
+  xlab("Occurrence probability") +
+  ggtitle("(d) Pasture type") +
   theme(axis.text.y =element_text(face="italic"))+
   scale_fill_cyclical(
     breaks = c("base", "+10%"),
